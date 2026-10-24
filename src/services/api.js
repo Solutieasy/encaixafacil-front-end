@@ -54,6 +54,70 @@ class ApiService {
   async getAccess() {
     return this.request("/billing/access");
   }
+
+  async get(path) {
+    return this.request(path);
+  }
+
+  async post(path, body) {
+    return this.request(path, {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  }
+
+  async put(path, body) {
+    return this.request(path, {
+      method: "PUT",
+      body: JSON.stringify(body),
+    });
+  }
+
+  async patch(path, body) {
+    return this.request(path, {
+      method: "PATCH",
+      body: JSON.stringify(body),
+    });
+  }
+
+  async delete(path) {
+    return this.request(path, { method: "DELETE" });
+  }
+
+  async getPublicBookingData(userId) {
+    const response = await fetch(
+      `${import.meta.env.VITE_API_URL}/public/${userId}/booking`,
+    );
+
+    const data = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+      throw new Error(data.error || "Página não encontrada.");
+    }
+
+    return data;
+  }
+
+  async createPublicAppointment(userId, payload) {
+    const response = await fetch(
+      `${import.meta.env.VITE_API_URL}/public/${userId}/appointments`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      },
+    );
+
+    const data = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+      throw new Error(data.error || "Não foi possível criar o agendamento.");
+    }
+
+    return data;
+  }
 }
 
 export const api = new ApiService();

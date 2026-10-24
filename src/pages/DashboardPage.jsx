@@ -1,12 +1,26 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "../contexts/AuthContext";
 import { api } from "../services/api";
+import { ServicesScreen } from "./ServicesScreen";
+import { TodayScreen } from "./TodayScreen";
+import { AppointmentsScreen } from "./AppointmentsScreen";
+import { ScheduleScreen } from "./ScheduleScreen";
 
 export function DashboardPage() {
   const { user, logout, goToSubscription } = useAuth();
   const [access, setAccess] = useState(null);
-  const [bookingLink, setBookingLink] = useState("");
   const [copied, setCopied] = useState(false);
+  const [screen, setScreen] = useState("overview");
+  const [stats, setStats] = useState(null);
+
+  useEffect(() => {
+    async function loadStats() {
+      const data = await api.get("/dashboard/stats");
+      setStats(data);
+    }
+
+    loadStats();
+  }, []);
 
   useEffect(() => {
     async function loadAccess() {
@@ -21,10 +35,14 @@ export function DashboardPage() {
     loadAccess();
   }, []);
 
-  function copyBookingLink() {
-    navigator.clipboard.writeText(bookingLink);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+  async function copyBookingLink() {
+    try {
+      await navigator.clipboard.writeText(bookingLink);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (error) {
+      console.error("Não foi possível copiar o link:", error);
+    }
   }
 
   if (!access) {
@@ -34,6 +52,8 @@ export function DashboardPage() {
       </main>
     );
   }
+
+  const bookingLink = `${window.location.origin}/agendar/${user.id}`;
 
   if (!access.hasAccess) {
     const isCanceled = access.status === "CANCELED";
@@ -85,22 +105,90 @@ export function DashboardPage() {
     );
   }
 
+  if (screen === "services") {
+    return (
+      <div className="min-h-screen bg-brand-100">
+        <header className="border-b border-brand-300 bg-brand-50">
+          <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
+            <button
+              type="button"
+              onClick={() => setScreen("overview")}
+              className="rounded-xl border border-brand-300 bg-white px-4 py-2 text-sm font-semibold text-brand-700"
+            >
+              ← Voltar
+            </button>
+
+            <button
+              type="button"
+              onClick={logout}
+              className="rounded-xl border border-brand-300 bg-white px-4 py-2 text-sm font-semibold text-brand-700"
+            >
+              Sair
+            </button>
+          </div>
+        </header>
+
+        <main className="mx-auto max-w-5xl px-6 py-10">
+          <h1 className="mb-8 text-3xl font-bold text-brand-900">
+            Serviços disponíveis
+          </h1>
+
+          <ServicesScreen />
+        </main>
+      </div>
+    );
+  }
+
+  if (screen === "today") {
+    return (
+      <div className="min-h-screen bg-brand-100">
+        <main className="mx-auto max-w-5xl px-6 py-10">
+          <TodayScreen onBack={() => setScreen("overview")} />
+        </main>
+      </div>
+    );
+  }
+
+  if (screen === "appointments") {
+    return (
+      <div className="min-h-screen bg-brand-100">
+        <main className="mx-auto max-w-5xl px-6 py-10">
+          <AppointmentsScreen onBack={() => setScreen("overview")} />
+        </main>
+      </div>
+    );
+  }
+
+  if (screen === "schedule") {
+    return (
+      <div className="min-h-screen bg-brand-100">
+        <main className="mx-auto max-w-5xl px-6 py-10">
+          <ScheduleScreen onBack={() => setScreen("overview")} />
+        </main>
+      </div>
+    );
+  }
+
   const menu = [
     {
-      title: "Dashboard",
-      description: "Visão geral da sua operação",
-    },
-    {
+      id: "appointments",
       title: "Atendimentos agendados",
       description: "Ver todos os agendamentos",
     },
     {
+      id: "services",
       title: "Serviços disponíveis",
       description: "Cadastrar, editar e remover serviços",
     },
     {
+      id: "today",
       title: "Agendamentos do dia",
       description: "Enviar lembrete por WhatsApp",
+    },
+    {
+      id: "schedule",
+      title: "Carga horária",
+      description: "Horários disponíveis de segunda a domingo",
     },
   ];
 
@@ -143,10 +231,29 @@ export function DashboardPage() {
           <h1 className="text-2xl font-bold text-brand-900">
             Acesso liberado 🎉
           </h1>
-          <p className="mt-2 text-slate-600">
-            Sua assinatura está ativa. Agora você pode configurar sua agenda,
-            serviços e receber agendamentos.
-          </p>
+
+          <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <div className="rounded-xl bg-white p-5">
+              <p className="text-sm text-slate-500">Serviços ativos</p>
+              <p className="mt-1 text-3xl font-bold text-brand-700">
+                {stats?.activeServices ?? 0}
+              </p>
+            </div>
+
+            <div className="rounded-xl bg-white p-5">
+              <p className="text-sm text-slate-500">Agendamentos futuros</p>
+              <p className="mt-1 text-3xl font-bold text-brand-700">
+                {stats?.totalAppointments ?? 0}
+              </p>
+            </div>
+
+            <div className="rounded-xl bg-white p-5">
+              <p className="text-sm text-slate-500">Agendamentos do dia</p>
+              <p className="mt-1 text-3xl font-bold text-brand-700">
+                {stats?.todayAppointments ?? 0}
+              </p>
+            </div>
+          </div>
         </div>
 
         <section className="grid grid-cols-1 gap-5 sm:grid-cols-2">
@@ -154,6 +261,7 @@ export function DashboardPage() {
             <button
               key={item.title}
               type="button"
+              onClick={() => setScreen(item.id)}
               className="rounded-2xl border border-brand-300 bg-brand-50 p-6 text-left shadow-sm transition hover:border-brand-700 hover:shadow-md"
             >
               <h2 className="text-xl font-semibold text-brand-900">
@@ -168,25 +276,37 @@ export function DashboardPage() {
           <h2 className="text-xl font-semibold text-brand-900">
             Link público de agendamento
           </h2>
+
           <p className="mt-2 text-sm text-slate-600">
-            Compartilhe este link para que clientes façam agendamentos.
+            Compartilhe este link para que seus clientes façam agendamentos.
           </p>
 
           <div className="mt-4 flex flex-col gap-3 sm:flex-row">
             <input
               readOnly
               value={bookingLink}
-              placeholder="https://encaixafacil.com/agendar/seu-usuario"
+              onFocus={(event) => event.target.select()}
               className="w-full rounded-xl border border-brand-300 bg-white px-4 py-3 text-sm"
             />
 
-            <button
-              type="button"
-              onClick={copyBookingLink}
-              className="rounded-xl bg-brand-700 px-6 py-3 text-sm font-semibold text-white transition hover:bg-brand-800"
-            >
-              {copied ? "Copiado!" : "Copiar link"}
-            </button>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={copyBookingLink}
+                className="rounded-xl bg-brand-700 px-5 py-3 text-sm font-semibold text-white transition hover:bg-brand-800"
+              >
+                {copied ? "Copiado!" : "Copiar link"}
+              </button>
+
+              <a
+                href={bookingLink}
+                target="_blank"
+                rel="noreferrer"
+                className="rounded-xl border border-brand-300 bg-white px-5 py-3 text-sm font-semibold text-brand-700 transition hover:bg-brand-300/40"
+              >
+                Abrir
+              </a>
+            </div>
           </div>
         </section>
       </main>
