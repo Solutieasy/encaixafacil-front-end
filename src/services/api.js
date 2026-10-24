@@ -118,6 +118,26 @@ class ApiService {
 
     return data;
   }
+
+  async getAvailableSlots(userId, date, serviceId) {
+    const query = new URLSearchParams({ date, serviceId });
+
+    const response = await fetch(
+      `${import.meta.env.VITE_API_URL}/public/${userId}/availability?${query}`,
+    );
+
+    console.log("Status dos horários:", response.status);
+
+    const data = await response.json().catch(() => ({}));
+
+    console.log("Resposta dos horários:", data);
+
+    if (!response.ok) {
+      throw new Error(data.error || "Não foi possível carregar os horários.");
+    }
+
+    return data;
+  }
 }
 
 export const api = new ApiService();

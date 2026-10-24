@@ -1,9 +1,11 @@
 import { useEffect, useState } from "react";
 import { api } from "../services/api";
+import { useAuth } from "../contexts/AuthContext";
 
 export function TodayScreen({ onBack }) {
   const [appointments, setAppointments] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
+  const { user } = useAuth();
 
   async function loadAppointments() {
     try {
@@ -16,6 +18,19 @@ export function TodayScreen({ onBack }) {
     }
   }
 
+  async function completeAppointment(appointmentId) {
+    try {
+      await api.patch(`/appointments/${appointmentId}/complete`);
+
+      setAppointments((current) =>
+        current.filter((item) => item.id !== appointmentId),
+      );
+    } catch (error) {
+      console.error("Erro ao concluir agendamento:", error);
+      alert("Não foi possível concluir o agendamento.");
+    }
+  }
+
   useEffect(() => {
     loadAppointments();
   }, []);
@@ -23,11 +38,35 @@ export function TodayScreen({ onBack }) {
   function sendWhatsAppReminder(appointment) {
     const phone = appointment.customerPhone.replace(/\D/g, "");
 
-    const message = encodeURIComponent(
-      `Olá, ${appointment.customerName}! Este é um lembrete do seu atendimento de ${appointment.service.name} em ${new Date(
-        appointment.startsAt,
-      ).toLocaleString("pt-BR")}.`,
-    );
+    const startsAt = new Date(appointment.startsAt);
+
+    const formattedDate = startsAt.toLocaleDateString("pt-BR", {
+      weekday: "long",
+      day: "2-digit",
+      month: "long",
+    });
+
+    const formattedTime = startsAt.toLocaleTimeString("pt-BR", {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+
+    const professionalName = user?.name || "seu profissional";
+    const serviceName = appointment.service?.name || "seu atendimento";
+
+    const message = [
+      `Olá, ${appointment.customerName}!`,
+      "",
+      `Este é um lembrete do seu atendimento na ${professionalName}.`,
+      "",
+      `📅 Serviço: ${serviceName}`,
+      `🗓️ Data: ${formattedDate}`,
+      `⏰ Horário: ${formattedTime}`,
+      "",
+      "Por favor, responda esta mensagem para confirmar sua presença.",
+      "",
+      "Se precisar remarcar ou cancelar, entre em contato conosco.",
+    ].join("\n");
 
     window.open(`https://wa.me/55${phone}?text=${message}`, "_blank");
   }
@@ -82,13 +121,23 @@ export function TodayScreen({ onBack }) {
                   </p>
                 </div>
 
-                <button
-                  type="button"
-                  onClick={() => sendWhatsAppReminder(appointment)}
-                  className="rounded-xl bg-brand-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-brand-800"
-                >
-                  Enviar lembrete no WhatsApp
-                </button>
+                <div className="mt-4 flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => sendWhatsAppReminder(appointment)}
+                    className="rounded-xl bg-brand-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-brand-800"
+                  >
+                    Enviar lembrete no WhatsApp
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => completeAppointment(appointment.id)}
+                    className="rounded-xl bg-green-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-green-700"
+                  >
+                    Concluir
+                  </button>
+                </div>
               </div>
             </li>
           ))}

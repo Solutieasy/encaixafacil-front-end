@@ -6,13 +6,21 @@ export function PublicBookingPage({ userId }) {
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [availableSlots, setAvailableSlots] = useState([]);
+  const [isLoadingSlots, setIsLoadingSlots] = useState(false);
+
+  const today = new Date().toISOString().split("T")[0];
+
+  const maxDate = new Date();
+  maxDate.setDate(maxDate.getDate() + 30);
+  const maxDateValue = maxDate.toISOString().split("T")[0];
 
   const [form, setForm] = useState({
     serviceId: "",
     customerName: "",
     customerPhone: "",
     date: "",
-    time: "",
+    startsAt: "",
     notes: "",
   });
 
@@ -29,18 +37,54 @@ export function PublicBookingPage({ userId }) {
     loadData();
   }, [userId]);
 
+  useEffect(() => {
+    async function loadSlots() {
+      if (!form.date || !form.serviceId) {
+        setAvailableSlots([]);
+        return;
+      }
+
+      setIsLoadingSlots(true);
+
+      try {
+        const data = await api.getAvailableSlots(
+          userId,
+          form.date,
+          form.serviceId,
+        );
+
+        setAvailableSlots(data.slots);
+      } catch (err) {
+        console.error("Erro ao carregar horários:", err);
+        setAvailableSlots([]);
+        setError(err.message);
+      } finally {
+        setIsLoadingSlots(false);
+      }
+    }
+
+    loadSlots();
+  }, [form.date, form.serviceId, userId]);
+
   function handleChange(event) {
     const { name, value } = event.target;
 
     setForm((current) => ({
       ...current,
       [name]: value,
+      ...(name === "date" || name === "serviceId" ? { startsAt: "" } : {}),
     }));
   }
 
   async function handleSubmit(event) {
     event.preventDefault();
     setError(null);
+
+    if (!form.startsAt) {
+      setError("Selecione um horário disponível.");
+      return;
+    }
+
     setIsLoading(true);
 
     try {
@@ -48,7 +92,7 @@ export function PublicBookingPage({ userId }) {
         serviceId: form.serviceId,
         customerName: form.customerName,
         customerPhone: form.customerPhone,
-        startsAt: new Date(`${form.date}T${form.time}:00`).toISOString(),
+        startsAt: form.startsAt,
         notes: form.notes || null,
       });
 
@@ -169,34 +213,69 @@ export function PublicBookingPage({ userId }) {
                 placeholder="(11) 99999-9999"
               />
             </div>
+          </div>
 
-            <div>
-              <label className="mb-1.5 block text-sm font-medium text-brand-900">
-                Data
-              </label>
-              <input
-                name="date"
-                type="date"
-                value={form.date}
-                onChange={handleChange}
-                required
-                className="w-full rounded-xl border border-brand-300 bg-white px-4 py-3"
-              />
-            </div>
+          <div>
+            <label className="mb-1.5 block text-sm font-medium text-brand-900">
+              Data
+            </label>
+            <input
+              name="date"
+              type="date"
+              value={form.date}
+              onChange={handleChange}
+              min={today}
+              max={maxDateValue}
+              required
+              className="w-full rounded-xl border border-brand-300 bg-white px-4 py-3"
+            />
+          </div>
 
-            <div>
-              <label className="mb-1.5 block text-sm font-medium text-brand-900">
-                Horário
-              </label>
-              <input
-                name="time"
-                type="time"
-                value={form.time}
-                onChange={handleChange}
-                required
-                className="w-full rounded-xl border border-brand-300 bg-white px-4 py-3"
-              />
-            </div>
+          <div>
+            <label className="mb-1.5 block text-sm font-medium text-brand-900">
+              Horário disponível
+            </label>
+
+            {!form.date || !form.serviceId ? (
+              <p className="text-sm text-slate-500">
+                Selecione um serviço e uma data.
+              </p>
+            ) : isLoadingSlots ? (
+              <p className="text-sm text-slate-500">Carregando horários...</p>
+            ) : availableSlots.length === 0 ? (
+              <p className="text-sm text-slate-500">
+                Nenhum horário disponível nesta data.
+              </p>
+            ) : (
+              <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
+                {availableSlots.map((slot) => {
+                  const time = new Date(slot).toLocaleTimeString("pt-BR", {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  });
+
+                  return (
+                    <button
+                      key={slot}
+                      type="button"
+                      onClick={() =>
+                        setForm((current) => ({
+                          ...current,
+                          startsAt: slot,
+                        }))
+                      }
+                      className={`rounded-xl border px-3 py-2 text-sm font-semibold transition ${
+                        form.startsAt === slot
+                          ? "border-brand-700 bg-brand-700 text-white"
+                          : "border-brand-300 bg-white text-brand-700 hover:border-brand-500"
+                      }`}
+                    >
+                      {time}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
           </div>
 
           <div>
@@ -221,8 +300,8 @@ export function PublicBookingPage({ userId }) {
 
           <button
             type="submit"
-            disabled={isLoading}
-            className="w-full rounded-xl bg-brand-700 px-4 py-3 font-semibold text-white transition hover:bg-brand-800 disabled:opacity-60"
+            disabled={isLoading || !form.startsAt}
+            className="w-full rounded-xl bg-brand-700 px-4 py-3 font-semibold text-white transition hover:bg-brand-800 disabled:cursor-not-allowed disabled:opacity-60"
           >
             {isLoading ? "Agendando..." : "Confirmar agendamento"}
           </button>
