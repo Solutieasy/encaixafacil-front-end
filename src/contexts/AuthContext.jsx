@@ -3,74 +3,115 @@ import { api } from "../services/api";
 
 const AuthContext = createContext(null);
 
+const routes = {
+  login: "/",
+  register: "/register",
+  subscription: "/subscription",
+  "checkout-success": "/checkout/success",
+  dashboard: "/dashboard",
+};
+
+function getPath(screen) {
+  return routes[screen] || "/";
+}
+
+function getScreenFromPath(path) {
+  if (path === "/register") return "register";
+  if (path === "/subscription") return "subscription";
+  if (path === "/checkout/success") return "checkout-success";
+  if (path === "/dashboard") return "dashboard";
+
+  return "login";
+}
+
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [screen, setScreen] = useState("loading");
 
-  useEffect(() => {
-  async function validateSession() {
-    const path = window.location.pathname;
+  function changeScreen(nextScreen) {
+    const path = getPath(nextScreen);
 
-    if (path === "/checkout/success") {
-      setScreen("checkout-success");
-      return;
+    if (window.location.pathname !== path) {
+      window.history.pushState({}, "", path);
     }
 
-    const token = sessionStorage.getItem("encaixafacil_token");
-
-    if (!token) {
-      setScreen("login");
-      return;
-    }
-
-    try {
-      const data = await api.getMe();
-      setUser(data.user);
-      setScreen("dashboard");
-    } catch {
-      sessionStorage.removeItem("encaixafacil_token");
-      setUser(null);
-      setScreen("login");
-    }
+    setScreen(nextScreen);
   }
 
-  validateSession();
-}, []);
+  useEffect(() => {
+    async function validateSession() {
+      const path = window.location.pathname;
+
+      if (path === "/checkout/success") {
+        setScreen("checkout-success");
+        return;
+      }
+
+      const token = localStorage.getItem("encaixafacil_token");
+
+      if (!token) {
+        setScreen("login");
+        return;
+      }
+
+      try {
+        const data = await api.getMe();
+        setUser(data.user);
+        setScreen("dashboard");
+      } catch {
+        localStorage.removeItem("encaixafacil_token");
+        setUser(null);
+        setScreen("login");
+      }
+    }
+
+    validateSession();
+  }, []);
+
+  useEffect(() => {
+    function handlePopState() {
+      setScreen(getScreenFromPath(window.location.pathname));
+    }
+
+    window.addEventListener("popstate", handlePopState);
+
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, []);
 
   async function login(credentials) {
     const { user: authenticatedUser, token } = await api.login(credentials);
 
-    sessionStorage.setItem("encaixafacil_token", token);
+    localStorage.setItem("encaixafacil_token", token);
     setUser(authenticatedUser);
-    setScreen("dashboard");
+    changeScreen("dashboard");
 
     return authenticatedUser;
   }
 
   function logout() {
-    sessionStorage.removeItem("encaixafacil_token");
+    localStorage.removeItem("encaixafacil_token");
     setUser(null);
-    setScreen("login");
+    changeScreen("login");
   }
 
   function goToRegister() {
-    setScreen("register");
+    changeScreen("register");
   }
 
   function goToLogin() {
-    setScreen("login");
+    changeScreen("login");
   }
 
   function goToDashboard() {
-    setScreen("dashboard");
+    changeScreen("dashboard");
   }
 
   function goToSubscription() {
-    setScreen("subscription");
+    changeScreen("subscription");
   }
 
   function goToCheckoutSuccess() {
-    setScreen("checkout-success");
+    changeScreen("checkout-success");
   }
 
   return (
