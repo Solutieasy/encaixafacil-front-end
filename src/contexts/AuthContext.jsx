@@ -8,27 +8,34 @@ export function AuthProvider({ children }) {
   const [screen, setScreen] = useState("loading");
 
   useEffect(() => {
-    async function validateSession() {
-      const token = sessionStorage.getItem("encaixafacil_token");
+  async function validateSession() {
+    const path = window.location.pathname;
 
-      if (!token) {
-        setScreen("login");
-        return;
-      }
-
-      try {
-        const data = await api.getMe();
-        setUser(data.user);
-        setScreen("dashboard");
-      } catch {
-        sessionStorage.removeItem("encaixafacil_token");
-        setUser(null);
-        setScreen("login");
-      }
+    if (path === "/checkout/success") {
+      setScreen("checkout-success");
+      return;
     }
 
-    validateSession();
-  }, []);
+    const token = sessionStorage.getItem("encaixafacil_token");
+
+    if (!token) {
+      setScreen("login");
+      return;
+    }
+
+    try {
+      const data = await api.getMe();
+      setUser(data.user);
+      setScreen("dashboard");
+    } catch {
+      sessionStorage.removeItem("encaixafacil_token");
+      setUser(null);
+      setScreen("login");
+    }
+  }
+
+  validateSession();
+}, []);
 
   async function login(credentials) {
     const { user: authenticatedUser, token } = await api.login(credentials);
